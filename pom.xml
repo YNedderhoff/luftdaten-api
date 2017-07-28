@@ -51,6 +51,19 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- influx -->
+
+		<dependency>
+			<groupId>com.github.miwurster</groupId>
+			<artifactId>spring-data-influxdb</artifactId>
+			<version>1.5</version>
+		</dependency>
+		<dependency>
+			<groupId>org.influxdb</groupId>
+			<artifactId>influxdb-java</artifactId>
+			<version>2.5</version>
+		</dependency>
 	</dependencies>
 
 	<build>
