@@ -1,5 +1,9 @@
 package xyz.nedderhoff.luftdatenapi
 
+/**
+ * from https://github.com/miwurster/spring-data-influxdb
+ */
+
 import org.influxdb.dto.Point
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
