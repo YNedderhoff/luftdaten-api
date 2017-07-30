@@ -14,7 +14,6 @@ import xyz.nedderhoff.luftdatenapi.domain.PmDTO
 import xyz.nedderhoff.luftdatenapi.domain.TemperatureDTO
 import java.util.*
 import java.util.stream.Collectors
-import java.util.stream.Stream
 
 
 @Service
@@ -26,51 +25,56 @@ class LuftdatenService {
     private val database = "pm_temp_hum"
     private val luftdatenSeries = "feinstaub"
     private val selectLastValuePlaceholder = "SELECT %s FROM \"$luftdatenSeries\" "
+    private val dateRangeQuery = " WHERE time > now() - 1h "
     private val lastTemperatureQuery = String.format(selectLastValuePlaceholder, "last(\"temperature\")")
     private val lastHumidityQuery = String.format(selectLastValuePlaceholder, "last(\"humidity\")")
+    private val temperatureInDateRangeQuery = String.format(selectLastValuePlaceholder, "\"temperature\"") + dateRangeQuery
+    private val humidityInDateRangeQuery = String.format(selectLastValuePlaceholder, "\"humidity\"") + dateRangeQuery
+    private val pmInDateRangeQuery = String.format(selectLastValuePlaceholder, "\"SDS_P1\", \"SDS_P2\"") + dateRangeQuery
 
 
     fun ping(): Pong = influxDBTemplate!!.ping()
 
     fun queryTemperatureInDateRange(startDate: Date, endDate: Date): MutableList<TemperatureDTO>? {
-        val queryString = "SELECT \"temperature\" FROM \"feinstaub\" WHERE time > now() - 1h"
-        return queryAndReturnStream(queryString)
+        return queryAndReturnValues(temperatureInDateRangeQuery)
+                .stream()
                 .map { v -> TemperatureDTO(v[0] as String, v[1] as Double) }
                 .collect(Collectors.toList())
     }
 
-    fun queryHumidityInDateRange(startDate: Date, endDate: Date): MutableList<TemperatureDTO>? {
-        val queryString = "SELECT \"humidity\" FROM \"feinstaub\" WHERE time > now() - 1h"
-        return queryAndReturnStream(queryString)
-                .map { v -> TemperatureDTO(v[0] as String, v[1] as Double) }
+    fun queryHumidityInDateRange(startDate: Date, endDate: Date): MutableList<HumidityDTO>? {
+        return queryAndReturnValues(humidityInDateRangeQuery)
+                .stream()
+                .map { v -> HumidityDTO(v[0] as String, v[1] as Double) }
                 .collect(Collectors.toList())
     }
 
     fun queryPmInDateRange(startDate: Date, endDate: Date): MutableList<PmDTO>? {
-        val queryString = "SELECT \"SDS_P1\", \"SDS_P2\" FROM \"feinstaub\" WHERE time > now() - 1h"
-        return queryAndReturnStream(queryString)
+        return queryAndReturnValues(pmInDateRangeQuery)
+                .stream()
                 .map { v -> PmDTO(Pm1DTO(v[0] as String, v[1] as Double), Pm2DTO(v[0] as String, v[2] as Double)) }
                 .collect(Collectors.toList())
     }
 
     fun queryLastTemperature(): Optional<TemperatureDTO>? {
-        return queryAndReturnStream(lastTemperatureQuery)
+        return queryAndReturnValues(lastTemperatureQuery)
+                .stream()
                 .findFirst()
                 .map { v -> TemperatureDTO(v[0] as String, v[1] as Double) }
     }
 
     fun queryLastHumidity(): Optional<HumidityDTO>? {
-        return queryAndReturnStream(lastHumidityQuery)
+        return queryAndReturnValues(lastHumidityQuery)
+                .stream()
                 .findFirst()
                 .map { v -> HumidityDTO(v[0] as String, v[1] as Double) }
     }
 
-    private fun queryAndReturnStream(queryString: String): Stream<MutableList<Any>> {
+    private fun queryAndReturnValues(queryString: String): MutableList<MutableList<Any>> {
         return query(queryString)
                 .results[0]
                 .series[0]
                 .values
-                .stream()
     }
 
     private fun query(queryString: String): QueryResult = influxDBTemplate!!
