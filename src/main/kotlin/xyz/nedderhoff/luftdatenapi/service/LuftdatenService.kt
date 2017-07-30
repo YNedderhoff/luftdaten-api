@@ -1,6 +1,5 @@
 package xyz.nedderhoff.luftdatenapi.service
 
-import com.google.common.base.Preconditions
 import org.influxdb.dto.Point
 import org.influxdb.dto.Pong
 import org.influxdb.dto.Query
@@ -9,13 +8,13 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.influxdb.InfluxDBTemplate
 import org.springframework.stereotype.Service
 import xyz.nedderhoff.luftdatenapi.domain.HumidityDTO
+import xyz.nedderhoff.luftdatenapi.domain.Pm1DTO
+import xyz.nedderhoff.luftdatenapi.domain.Pm2DTO
 import xyz.nedderhoff.luftdatenapi.domain.PmDTO
 import xyz.nedderhoff.luftdatenapi.domain.TemperatureDTO
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.util.concurrent.CompletableFuture
+import java.util.*
+import java.util.stream.Collectors
+import java.util.stream.Stream
 
 
 @Service
@@ -26,63 +25,55 @@ class LuftdatenService {
 
     private val database = "pm_temp_hum"
     private val luftdatenSeries = "feinstaub"
-    private val selectPlaceholder = "SELECT last(\"%s\") FROM \"$luftdatenSeries\" "
-    private val lastTemperatureQuery = String.format(selectPlaceholder, "temperature")
-    private val lastHumidityQuery = String.format(selectPlaceholder, "humidity")
-    private val lastPm1Query = String.format(selectPlaceholder, "SDS_P1")
-    private val lastPm2Query = String.format(selectPlaceholder, "SDS_P2")
+    private val selectLastValuePlaceholder = "SELECT %s FROM \"$luftdatenSeries\" "
+    private val lastTemperatureQuery = String.format(selectLastValuePlaceholder, "last(\"temperature\")")
+    private val lastHumidityQuery = String.format(selectLastValuePlaceholder, "last(\"humidity\")")
 
 
     fun ping(): Pong = influxDBTemplate!!.ping()
 
-    fun queryLastTemperature(): TemperatureDTO {
-        val (date, value) = getValues(lastTemperatureQuery)
-        return TemperatureDTO(date, value)
+    fun queryTemperatureInDateRange(startDate: Date, endDate: Date): MutableList<TemperatureDTO>? {
+        val queryString = "SELECT \"temperature\" FROM \"feinstaub\" WHERE time > now() - 1h"
+        return queryAndReturnStream(queryString)
+                .map { v -> TemperatureDTO(v[0] as String, v[1] as Double) }
+                .collect(Collectors.toList())
     }
 
-    fun queryLastHumidity(): HumidityDTO {
-        val (date, value) = getValues(lastHumidityQuery)
-        return HumidityDTO(date, value)
+    fun queryHumidityInDateRange(startDate: Date, endDate: Date): MutableList<TemperatureDTO>? {
+        val queryString = "SELECT \"humidity\" FROM \"feinstaub\" WHERE time > now() - 1h"
+        return queryAndReturnStream(queryString)
+                .map { v -> TemperatureDTO(v[0] as String, v[1] as Double) }
+                .collect(Collectors.toList())
     }
 
-    fun queryLastPm(): PmDTO {
+    fun queryPmInDateRange(startDate: Date, endDate: Date): MutableList<PmDTO>? {
+        val queryString = "SELECT \"SDS_P1\", \"SDS_P2\" FROM \"feinstaub\" WHERE time > now() - 1h"
+        return queryAndReturnStream(queryString)
+                .map { v -> PmDTO(Pm1DTO(v[0] as String, v[1] as Double), Pm2DTO(v[0] as String, v[2] as Double)) }
+                .collect(Collectors.toList())
+    }
 
-        val async1 = CompletableFuture.supplyAsync({ getValues(lastPm1Query) })
-        val async2 = CompletableFuture.supplyAsync({ getValues(lastPm2Query) })
-        CompletableFuture.allOf(async1, async2)
+    fun queryLastTemperature(): Optional<TemperatureDTO>? {
+        return queryAndReturnStream(lastTemperatureQuery)
+                .findFirst()
+                .map { v -> TemperatureDTO(v[0] as String, v[1] as Double) }
+    }
 
-        val (date1, value1) = async1.get()
-        val (_, value2) = async2.get()
-        return PmDTO(date1, value1, value2)
+    fun queryLastHumidity(): Optional<HumidityDTO>? {
+        return queryAndReturnStream(lastHumidityQuery)
+                .findFirst()
+                .map { v -> HumidityDTO(v[0] as String, v[1] as Double) }
+    }
+
+    private fun queryAndReturnStream(queryString: String): Stream<MutableList<Any>> {
+        return query(queryString)
+                .results[0]
+                .series[0]
+                .values
+                .stream()
     }
 
     private fun query(queryString: String): QueryResult = influxDBTemplate!!
             .connection
             .query(Query(queryString, database))
-
-    private fun getValues(queryString: String): Pair<String, Double> {
-        val queryResult = query(queryString)
-        val values = getValidValues(queryResult)
-        val date = getDate(values[0] as String)
-        val value = values[1] as Double
-        return Pair(date, value)
-    }
-
-    private fun getValidValues(queryResult: QueryResult): MutableList<Any> {
-        Preconditions.checkState(!queryResult.hasError())
-        val results = queryResult.results
-        Preconditions.checkState(results.size == 1)
-        val series = results[0].series
-        Preconditions.checkState(series.size == 1)
-        Preconditions.checkState(series[0].values.size == 1)
-        val values = series[0].values
-        Preconditions.checkState(values[0].size == 2)
-        return values[0]
-    }
-
-    private fun getDate(dateString: String): String {
-        val instant = Instant.parse(dateString)
-        val zonedDateTime = instant.atZone(ZoneId.of(ZoneOffset.UTC.id))
-        return zonedDateTime.format(DateTimeFormatter.ISO_INSTANT)
-    }
 }
