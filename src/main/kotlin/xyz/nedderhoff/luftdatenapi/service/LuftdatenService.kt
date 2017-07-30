@@ -38,36 +38,38 @@ class LuftdatenService {
     fun queryTemperatureInDateRange(startDate: Date, endDate: Date): MutableList<TemperatureDTO>? {
         return queryAndReturnValues(temperatureInDateRangeQuery)
                 .stream()
-                .map { v -> TemperatureDTO(v[0] as String, v[1] as Double) }
+                .map { toTemperatureDTO(it) }
                 .collect(Collectors.toList())
     }
 
     fun queryHumidityInDateRange(startDate: Date, endDate: Date): MutableList<HumidityDTO>? {
         return queryAndReturnValues(humidityInDateRangeQuery)
                 .stream()
-                .map { v -> HumidityDTO(v[0] as String, v[1] as Double) }
+                .map { toHumidityDto(it) }
                 .collect(Collectors.toList())
     }
+
 
     fun queryPmInDateRange(startDate: Date, endDate: Date): MutableList<PmDTO>? {
         return queryAndReturnValues(pmInDateRangeQuery)
                 .stream()
-                .map { v -> PmDTO(Pm1DTO(v[0] as String, v[1] as Double), Pm2DTO(v[0] as String, v[2] as Double)) }
+                .map { toPmDTO(it) }
                 .collect(Collectors.toList())
     }
+
 
     fun queryLastTemperature(): Optional<TemperatureDTO>? {
         return queryAndReturnValues(lastTemperatureQuery)
                 .stream()
                 .findFirst()
-                .map { v -> TemperatureDTO(v[0] as String, v[1] as Double) }
+                .map { toTemperatureDTO(it) }
     }
 
     fun queryLastHumidity(): Optional<HumidityDTO>? {
         return queryAndReturnValues(lastHumidityQuery)
                 .stream()
                 .findFirst()
-                .map { v -> HumidityDTO(v[0] as String, v[1] as Double) }
+                .map { toHumidityDto(it) }
     }
 
     private fun queryAndReturnValues(queryString: String): MutableList<MutableList<Any>> {
@@ -80,4 +82,9 @@ class LuftdatenService {
     private fun query(queryString: String): QueryResult = influxDBTemplate!!
             .connection
             .query(Query(queryString, database))
+
+    private fun toTemperatureDTO(v: MutableList<Any>) = TemperatureDTO(v[0] as String, v[1] as Double)
+    private fun toHumidityDto(v: MutableList<Any>) = HumidityDTO(v[0] as String, v[1] as Double)
+    private fun toPmDTO(v: MutableList<Any>) =
+            PmDTO(Pm1DTO(v[0] as String, v[1] as Double), Pm2DTO(v[0] as String, v[2] as Double))
 }

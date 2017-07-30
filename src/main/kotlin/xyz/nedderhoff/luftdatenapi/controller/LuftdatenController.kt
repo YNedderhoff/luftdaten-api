@@ -18,15 +18,15 @@ class LuftdatenController {
     @GetMapping("/temperature")
     fun getTemperatureInDateRange() = luftdatenService!!.queryTemperatureInDateRange(Date(), Date())
 
+    @GetMapping("/temperature/last")
+    fun getLastTemperature() = luftdatenService!!.queryLastTemperature()
+
     @GetMapping("/humidity")
     fun getHumidityInDateRange() = luftdatenService!!.queryHumidityInDateRange(Date(), Date())
 
+    @GetMapping("/humidity/last")
+    fun getLastHumidity() = luftdatenService!!.queryLastHumidity()
+
     @GetMapping("/pm")
     fun getPmInDateRange() = luftdatenService!!.queryPmInDateRange(Date(), Date())
-
-    @GetMapping("/lastTemperature")
-    fun getLastTemperature() = luftdatenService!!.queryLastTemperature()
-
-    @GetMapping("/lastHumidity")
-    fun getLastHumidity() = luftdatenService!!.queryLastHumidity()
 }
