@@ -1,5 +1,3 @@
 package xyz.nedderhoff.luftdatenapi.domain
 
-import java.time.LocalDate
-
-data class HumidityDTO(val date: LocalDate?, val humidity: Double)
+data class HumidityDTO(val date: String, val humidity: Double)
