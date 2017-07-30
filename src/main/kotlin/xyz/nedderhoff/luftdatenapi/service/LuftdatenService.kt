@@ -4,87 +4,64 @@ import org.influxdb.dto.Point
 import org.influxdb.dto.Pong
 import org.influxdb.dto.Query
 import org.influxdb.dto.QueryResult
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.influxdb.InfluxDBTemplate
 import org.springframework.stereotype.Service
-import xyz.nedderhoff.luftdatenapi.domain.HumidityDTO
-import xyz.nedderhoff.luftdatenapi.domain.Pm1DTO
-import xyz.nedderhoff.luftdatenapi.domain.Pm2DTO
-import xyz.nedderhoff.luftdatenapi.domain.PmDTO
-import xyz.nedderhoff.luftdatenapi.domain.TemperatureDTO
+import xyz.nedderhoff.luftdatenapi.presenter.LuftdatenPresenter
 import java.util.*
 import java.util.stream.Collectors
 
 
 @Service
-class LuftdatenService {
-
-    @Autowired
-    private val influxDBTemplate: InfluxDBTemplate<Point>? = null
+class LuftdatenService(val influxDBTemplate: InfluxDBTemplate<Point>?, val luftdatenPresenter: LuftdatenPresenter) {
 
     private val database = "pm_temp_hum"
     private val luftdatenSeries = "feinstaub"
-    private val selectLastValuePlaceholder = "SELECT %s FROM \"$luftdatenSeries\" "
+    private val selectClause = "SELECT %s FROM \"$luftdatenSeries\" "
     private val dateRangeQuery = " WHERE time > now() - 1h "
-    private val lastTemperatureQuery = String.format(selectLastValuePlaceholder, "last(\"temperature\")")
-    private val lastHumidityQuery = String.format(selectLastValuePlaceholder, "last(\"humidity\")")
-    private val temperatureInDateRangeQuery = String.format(selectLastValuePlaceholder, "\"temperature\"") + dateRangeQuery
-    private val humidityInDateRangeQuery = String.format(selectLastValuePlaceholder, "\"humidity\"") + dateRangeQuery
-    private val pmInDateRangeQuery = String.format(selectLastValuePlaceholder, "\"SDS_P1\", \"SDS_P2\"") + dateRangeQuery
+    private val lastTemperatureQuery = String.format(selectClause, "last(\"temperature\")")
+    private val lastHumidityQuery = String.format(selectClause, "last(\"humidity\")")
+    private val lastPmQuery = String.format(selectClause, "last(\"SDS_P1\"), last(\"SDS_P2\")")
+    private val temperatureInDateRangeQuery = String.format(selectClause, "\"temperature\"") + dateRangeQuery
+    private val humidityInDateRangeQuery = String.format(selectClause, "\"humidity\"") + dateRangeQuery
+    private val pmInDateRangeQuery = String.format(selectClause, "\"SDS_P1\", \"SDS_P2\"") + dateRangeQuery
 
 
     fun ping(): Pong = influxDBTemplate!!.ping()
 
-    fun queryTemperatureInDateRange(startDate: Date, endDate: Date): MutableList<TemperatureDTO>? {
-        return queryAndReturnValues(temperatureInDateRangeQuery)
-                .stream()
-                .map { toTemperatureDTO(it) }
-                .collect(Collectors.toList())
-    }
+    fun queryTemperatureInDateRange(startDate: Date, endDate: Date): MutableList<Any>? =
+            queryList(temperatureInDateRangeQuery, luftdatenPresenter::toTemperatureDTO)
 
-    fun queryHumidityInDateRange(startDate: Date, endDate: Date): MutableList<HumidityDTO>? {
-        return queryAndReturnValues(humidityInDateRangeQuery)
-                .stream()
-                .map { toHumidityDto(it) }
-                .collect(Collectors.toList())
-    }
+    fun queryHumidityInDateRange(startDate: Date, endDate: Date): MutableList<Any>? =
+            queryList(humidityInDateRangeQuery, luftdatenPresenter::toHumidityDto)
 
+    fun queryPmInDateRange(startDate: Date, endDate: Date): MutableList<Any>? =
+            queryList(pmInDateRangeQuery, luftdatenPresenter::toPmDTO)
 
-    fun queryPmInDateRange(startDate: Date, endDate: Date): MutableList<PmDTO>? {
-        return queryAndReturnValues(pmInDateRangeQuery)
-                .stream()
-                .map { toPmDTO(it) }
-                .collect(Collectors.toList())
-    }
+    fun queryLastTemperature(): Optional<Any>? = querySingle(lastTemperatureQuery, luftdatenPresenter::toTemperatureDTO)
 
+    fun queryLastHumidity(): Optional<Any>? = querySingle(lastHumidityQuery, luftdatenPresenter::toHumidityDto)
 
-    fun queryLastTemperature(): Optional<TemperatureDTO>? {
-        return queryAndReturnValues(lastTemperatureQuery)
-                .stream()
-                .findFirst()
-                .map { toTemperatureDTO(it) }
-    }
+    fun queryLastPm(): Optional<Any>? = querySingle(lastPmQuery, luftdatenPresenter::toPmDTO)
 
-    fun queryLastHumidity(): Optional<HumidityDTO>? {
-        return queryAndReturnValues(lastHumidityQuery)
-                .stream()
-                .findFirst()
-                .map { toHumidityDto(it) }
-    }
+    private fun querySingle(query: String, mappingFunction: (MutableList<Any>) -> Any): Optional<Any>? =
+            queryAndReturnValues(query)
+                    .stream()
+                    .findFirst()
+                    .map { mappingFunction(it) }
 
-    private fun queryAndReturnValues(queryString: String): MutableList<MutableList<Any>> {
-        return query(queryString)
-                .results[0]
-                .series[0]
-                .values
-    }
+    private fun queryList(query: String, mappingFunction: (MutableList<Any>) -> Any): MutableList<Any>? =
+            queryAndReturnValues(query)
+                    .stream()
+                    .map { mappingFunction(it) }
+                    .collect(Collectors.toList())
+
+    private fun queryAndReturnValues(queryString: String): MutableList<MutableList<Any>> =
+            query(queryString)
+                    .results[0]
+                    .series[0]
+                    .values
 
     private fun query(queryString: String): QueryResult = influxDBTemplate!!
             .connection
             .query(Query(queryString, database))
-
-    private fun toTemperatureDTO(v: MutableList<Any>) = TemperatureDTO(v[0] as String, v[1] as Double)
-    private fun toHumidityDto(v: MutableList<Any>) = HumidityDTO(v[0] as String, v[1] as Double)
-    private fun toPmDTO(v: MutableList<Any>) =
-            PmDTO(Pm1DTO(v[0] as String, v[1] as Double), Pm2DTO(v[0] as String, v[2] as Double))
 }
