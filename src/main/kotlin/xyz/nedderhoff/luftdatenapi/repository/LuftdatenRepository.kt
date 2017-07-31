@@ -8,7 +8,7 @@ import org.springframework.data.influxdb.InfluxDBTemplate
 import org.springframework.stereotype.Component
 
 @Component
-class LuftdatenRepository(val influxDBTemplate: InfluxDBTemplate<Point>?) {
+open class LuftdatenRepository(val influxDBTemplate: InfluxDBTemplate<Point>?) {
 
     private val database = "pm_temp_hum"
 
