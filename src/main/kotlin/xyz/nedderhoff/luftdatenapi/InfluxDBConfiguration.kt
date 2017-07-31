@@ -16,14 +16,14 @@ import org.springframework.data.influxdb.converter.PointConverter
 
 @Configuration
 @EnableConfigurationProperties(InfluxDBProperties::class)
-class InfluxDBConfiguration {
+open class InfluxDBConfiguration {
     @Bean
-    fun connectionFactory(properties: InfluxDBProperties): InfluxDBConnectionFactory {
+    open fun connectionFactory(properties: InfluxDBProperties): InfluxDBConnectionFactory {
         return InfluxDBConnectionFactory(properties)
     }
 
     @Bean
-    fun influxDBTemplate(connectionFactory: InfluxDBConnectionFactory): InfluxDBTemplate<Point> {
+    open fun influxDBTemplate(connectionFactory: InfluxDBConnectionFactory): InfluxDBTemplate<Point> {
 
         //You can use your own 'PointCollectionConverter' implementation, e.g. in case
         //you want to use your own custom measurement object.
@@ -32,7 +32,7 @@ class InfluxDBConfiguration {
     }
 
     @Bean
-    fun defaultTemplate(connectionFactory: InfluxDBConnectionFactory): DefaultInfluxDBTemplate {
+    open fun defaultTemplate(connectionFactory: InfluxDBConnectionFactory): DefaultInfluxDBTemplate {
 
         // If you are just dealing with Point objects from 'influxdb-java' you could
         //also use an instance of class DefaultInfluxDBTemplate.

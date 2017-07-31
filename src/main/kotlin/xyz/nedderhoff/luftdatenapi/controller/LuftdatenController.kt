@@ -13,31 +13,22 @@ class LuftdatenController(val luftdatenService: LuftdatenService?) {
         luftdatenService!!.ping()
     }
 
-    @GetMapping("/temperature")
-    fun getTemperatureInDateRange() = luftdatenService!!.queryTemperatureInDateRange()
+    @GetMapping("/temperature.json")
+    fun getTemperatureSeries() = luftdatenService!!.queryTemperatureSeries()
 
     @GetMapping("/temperature/last")
     fun getLastTemperature() = luftdatenService!!.queryLastTemperature()
 
-    @GetMapping("/temperature.json")
-    fun getTemperatureSeries() = luftdatenService!!.queryTemperatureInDateRangeAndReturnSeries()
-
-    @GetMapping("/humidity")
-    fun getHumidityInDateRange() = luftdatenService!!.queryHumidityInDateRange()
+    @GetMapping("/humidity.json")
+    fun getHumidityInDateRangeSeries() = luftdatenService!!.queryHumiditySeries()
 
     @GetMapping("/humidity/last")
     fun getLastHumidity() = luftdatenService!!.queryLastHumidity()
 
-    @GetMapping("/humidity.json")
-    fun getHumidityInDateRangeSeries() = luftdatenService!!.queryHumidityInDateRangeAndReturnSeries()
-
-    @GetMapping("/pm")
-    fun getPmInDateRange() = luftdatenService!!.queryPmInDateRange()
+    @GetMapping("/pm.json")
+    fun getPmSeries() = luftdatenService!!.queryPmSeries()
 
     @GetMapping("/pm/last")
     fun getLastPm() = luftdatenService!!.queryLastPm()
-
-    @GetMapping("/pm.json")
-    fun getPmSeries() = luftdatenService!!.queryPmInDateRangeAndReturnSeries()
 
 }

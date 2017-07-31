@@ -1,88 +1,96 @@
 package xyz.nedderhoff.luftdatenapi.service
 
 import org.influxdb.dto.Pong
-import org.influxdb.dto.QueryResult
 import org.springframework.stereotype.Service
-import xyz.nedderhoff.luftdatenapi.domain.MyResponseDTO
-import xyz.nedderhoff.luftdatenapi.domain.MySeriesDTO
+import xyz.nedderhoff.luftdatenapi.domain.ResponseDTO
+import xyz.nedderhoff.luftdatenapi.domain.SeriesDTO
 import xyz.nedderhoff.luftdatenapi.presenter.LuftdatenPresenter
 import xyz.nedderhoff.luftdatenapi.repository.LuftdatenRepository
 import java.util.Optional
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutorService
+import java.util.function.Supplier
 import java.util.stream.Collectors
 
 
 @Service
-class LuftdatenService(val presenter: LuftdatenPresenter, val repository: LuftdatenRepository) {
+class LuftdatenService(val presenter: LuftdatenPresenter,
+                       val repository: LuftdatenRepository,
+                       val executorService: ExecutorService) {
 
     private val luftdatenSeries = "feinstaub"
+    private val temperatureSeries = "temperature"
+    private val humiditySeries = "humidity"
+    private val pm1Series = "SDS_P1"
+    private val pm2Series = "SDS_P2"
+
     private val selectClause = "SELECT %s FROM \"$luftdatenSeries\" "
-    private val dateRangeQuery = " WHERE time > now() - 3d "
-    private val groupQuery = " GROUP BY time(1h) "
-    private val lastTemperatureQuery = String.format(selectClause, "last(\"temperature\")")
-    private val lastHumidityQuery = String.format(selectClause, "last(\"humidity\")")
-    private val lastPmQuery = String.format(selectClause, "last(\"SDS_P1\"), last(\"SDS_P2\")")
-    private val temperatureInDateRangeQuery = String.format(selectClause, "mean(\"temperature\")") + dateRangeQuery + groupQuery
-    private val humidityInDateRangeQuery = String.format(selectClause, "mean(\"humidity\")") + dateRangeQuery + groupQuery
-    private val pmInDateRangeQuery = String.format(selectClause, "\"SDS_P1\", \"SDS_P2\"") + dateRangeQuery
-    private val pm1InDateRangeQuery = String.format(selectClause, "mean(\"SDS_P1\")") + dateRangeQuery + groupQuery
-    private val pm2InDateRangeQuery = String.format(selectClause, "mean(\"SDS_P2\")") + dateRangeQuery + groupQuery
+    private val whereClause = " WHERE time > now() - 3d "
+    private val groupClause = " GROUP BY time(1h) "
+
+    private val lastTemperatureQuery = String.format(selectClause, "last(\"$temperatureSeries\"")
+    private val lastHumidityQuery = String.format(selectClause, "last(\"$humiditySeries\")")
+    private val lastPmQuery = String.format(selectClause, "last(\"$pm1Series\"), last(\"$pm2Series\")")
+
+    private val temperatureSeriesQuery = String.format(selectClause, "mean(\"$temperatureSeries\")") + whereClause + groupClause
+    private val humiditySeriesQuery = String.format(selectClause, "mean(\"$humiditySeries\")") + whereClause + groupClause
+    private val pm1SeriesQuery = String.format(selectClause, "mean(\"$pm1Series\")") + whereClause + groupClause
+    private val pm2SeriesQuery = String.format(selectClause, "mean(\"$pm2Series\")") + whereClause + groupClause
+
+    private val temperatureColumns = mutableListOf("time", "temperature")
+    private val humidityColumns = mutableListOf("time", "humidity")
+    private val pm1Columns = mutableListOf("time", "PM10")
+    private val pm2Columns = mutableListOf("time", "PM2.5")
+
+    private val temperatureColour = "#FF4500"
+    private val humidityColour = "#ADFF2F"
+    private val pm1Colour = "#FFFF00"
+    private val pm2Colour = "#00BFFF"
 
 
     fun ping(): Pong = repository.ping()
 
-    fun queryTemperatureInDateRange(): MutableList<Any>? =
-            queryList(temperatureInDateRangeQuery, presenter::toTemperatureDTO)
+    fun queryLastTemperature(): Optional<Any>? = queryLastValue(lastTemperatureQuery, presenter::toTemperatureDTO)
 
-    fun queryHumidityInDateRange(): MutableList<Any>? =
-            queryList(humidityInDateRangeQuery, presenter::toHumidityDto)
+    fun queryLastHumidity(): Optional<Any>? = queryLastValue(lastHumidityQuery, presenter::toHumidityDto)
 
-    fun queryPmInDateRange(): MutableList<Any>? =
-            queryList(pmInDateRangeQuery, presenter::toPmDTO)
+    fun queryLastPm(): Optional<Any>? = queryLastValue(lastPmQuery, presenter::toPmDTO)
 
-    fun queryLastTemperature(): Optional<Any>? = querySingle(lastTemperatureQuery, presenter::toTemperatureDTO)
+    fun queryTemperatureSeries(): ResponseDTO =
+            ResponseDTO(querySeries(temperatureSeriesQuery, temperatureSeries, temperatureColour, temperatureColumns))
 
-    fun queryLastHumidity(): Optional<Any>? = querySingle(lastHumidityQuery, presenter::toHumidityDto)
+    fun queryHumiditySeries(): ResponseDTO =
+            ResponseDTO(querySeries(humiditySeriesQuery, humiditySeries, humidityColour, humidityColumns))
 
-    fun queryLastPm(): Optional<Any>? = querySingle(lastPmQuery, presenter::toPmDTO)
+    fun queryPmSeries(): ResponseDTO {
+        val pm1Supplier = Supplier { querySeries(pm1SeriesQuery, pm1Series, pm1Colour, pm1Columns) }
+        val pm2Supplier = Supplier { querySeries(pm2SeriesQuery, pm2Series, pm2Colour, pm2Columns) }
 
-    private fun querySingle(query: String, mappingFunction: (MutableList<Any>) -> Any): Optional<Any>? =
-            queryAndReturnValues(query)
-                    .stream()
-                    .findFirst()
-                    .map { mappingFunction(it) }
+        val pm1Results = CompletableFuture.supplyAsync(pm1Supplier, executorService)
+        val pm2Results = CompletableFuture.supplyAsync(pm2Supplier, executorService)
 
-    private fun queryList(query: String, mappingFunction: (MutableList<Any>) -> Any): MutableList<Any>? =
-            queryAndReturnValues(query)
-                    .stream()
-                    .map { mappingFunction(it) }
-                    .collect(Collectors.toList())
+        return ResponseDTO(pm1Results.get()
+                .toSet()
+                .union(pm2Results.get())
+                .toMutableList())
+    }
 
-    private fun queryAndReturnValues(queryString: String): MutableList<MutableList<Any>> =
-            repository.query(queryString)
-                    .results[0]
-                    .series[0]
-                    .values
-
-    fun queryTemperatureInDateRangeAndReturnSeries(): MyResponseDTO =
-            MyResponseDTO(queryAndReturnSeries(temperatureInDateRangeQuery, "temperature", "#FF4500", mutableListOf("time", "temperature")))
-
-    fun queryHumidityInDateRangeAndReturnSeries(): MyResponseDTO =
-            MyResponseDTO(queryAndReturnSeries(humidityInDateRangeQuery, "humidity", "#ADFF2F", mutableListOf("time", "humidity")))
-
-    //TODO use futures
-    fun queryPmInDateRangeAndReturnSeries(): MyResponseDTO =
-            MyResponseDTO(queryAndReturnSeries(pm1InDateRangeQuery, "pm10", "#FFFF00", mutableListOf("time", "PM10"))
-                    .toSet()
-                    .union(queryAndReturnSeries(pm2InDateRangeQuery, "pm2.5", "#00BFFF", mutableListOf("time", "PM2.5")))
-                    .toMutableList())
-
-    private fun queryAndReturnSeries(queryString: String, id: String, colour: String, columns: MutableList<String>): MutableList<MySeriesDTO> {
-        val query = repository.query(queryString)
-        return query
+    private fun querySeries(query: String, id: String, colour: String, columns: MutableList<String>): MutableList<SeriesDTO> {
+        return repository
+                .query(query)
                 .results[0]
                 .series
                 .stream()
-                .map { s -> MySeriesDTO(id, s.name, colour, columns, s.values) }
+                .map { s -> SeriesDTO(id, s.name, colour, columns, s.values) }
                 .collect(Collectors.toList())
     }
+
+    private fun queryLastValue(query: String, mappingFunction: (MutableList<Any>) -> Any): Optional<Any>? =
+            repository.query(query)
+                    .results[0]
+                    .series[0]
+                    .values
+                    .stream()
+                    .findFirst()
+                    .map { mappingFunction(it) }
 }
