@@ -6,6 +6,11 @@ import xyz.nedderhoff.luftdatenapi.domain.ResponseDTO
 import xyz.nedderhoff.luftdatenapi.domain.SeriesDTO
 import xyz.nedderhoff.luftdatenapi.presenter.LuftdatenPresenter
 import xyz.nedderhoff.luftdatenapi.repository.LuftdatenRepository
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutorService
@@ -81,7 +86,7 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
                 .results[0]
                 .series
                 .stream()
-                .map { s -> SeriesDTO(id, s.name, colour, columns, s.values) }
+                .map { SeriesDTO(id, it.name, colour, columns, formatValues(it.values)) }
                 .collect(Collectors.toList())
     }
 
@@ -93,4 +98,14 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
                     .stream()
                     .findFirst()
                     .map { mappingFunction(it) }
+
+    private fun formatValues(values: List<MutableList<Any>>): MutableList<MutableList<Any>> = values
+            .stream()
+            .map { v -> mutableListOf(formatDate(v[0] as String), v[1] as Double) }
+            .collect(Collectors.toList())
+
+    private fun formatDate(dateString: String): String = Instant
+            .parse(dateString)
+            .atZone(ZoneId.of(ZoneOffset.UTC.id))
+            .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT))
 }
