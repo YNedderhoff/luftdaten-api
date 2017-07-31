@@ -4,7 +4,7 @@ import org.influxdb.dto.Pong
 import org.springframework.stereotype.Service
 import xyz.nedderhoff.luftdatenapi.presenter.LuftdatenPresenter
 import xyz.nedderhoff.luftdatenapi.repository.LuftdatenRepository
-import java.util.*
+import java.util.Optional
 import java.util.stream.Collectors
 
 
