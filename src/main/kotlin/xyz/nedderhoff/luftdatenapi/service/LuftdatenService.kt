@@ -6,7 +6,6 @@ import xyz.nedderhoff.luftdatenapi.domain.LastMeasurementsResponseDTO
 import xyz.nedderhoff.luftdatenapi.domain.SeriesDTO
 import xyz.nedderhoff.luftdatenapi.domain.SeriesResponseDTO
 import xyz.nedderhoff.luftdatenapi.helper.DateHelper
-import xyz.nedderhoff.luftdatenapi.presenter.LuftdatenPresenter
 import xyz.nedderhoff.luftdatenapi.repository.LuftdatenRepository
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutorService
@@ -16,8 +15,7 @@ import javax.ws.rs.NotFoundException
 
 
 @Service
-class LuftdatenService(val presenter: LuftdatenPresenter,
-                       val repository: LuftdatenRepository,
+class LuftdatenService(val repository: LuftdatenRepository,
                        val dateHelper: DateHelper,
                        val executorService: ExecutorService) {
 
@@ -41,10 +39,15 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
     private val pm1SeriesQuery = String.format(selectClause, "mean(\"$pm1Series\")") + whereClause + groupClause
     private val pm2SeriesQuery = String.format(selectClause, "mean(\"$pm2Series\")") + whereClause + groupClause
 
-    private val temperatureColumns = mutableListOf("time", "temperature")
-    private val humidityColumns = mutableListOf("time", "humidity")
-    private val pm1Columns = mutableListOf("time", "PM10")
-    private val pm2Columns = mutableListOf("time", "PM2.5 (µm)")
+    private val temperatureLabel = "Temperature (°C)"
+    private val humidityLabel = "Humidity (%)"
+    private val pm1Label = "PM10 (µm)"
+    private val pm2Label = "PM2.5 (µm)"
+
+    private val temperatureColumns = mutableListOf("time", temperatureLabel)
+    private val humidityColumns = mutableListOf("time", humidityLabel)
+    private val pm1Columns = mutableListOf("time", pm1Label)
+    private val pm2Columns = mutableListOf("time", pm2Label)
 
     private val temperatureColour = "#FF4500"
     private val humidityColour = "#ADFF2F"
@@ -55,10 +58,10 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
     fun ping(): Pong = repository.ping()
 
     fun queryLastMeasurements(): MutableList<LastMeasurementsResponseDTO> {
-        val temperatureSupplier = Supplier { queryLastValue(lastTemperatureQuery, presenter::toTemperatureDTO) }
-        val humiditySupplier = Supplier { queryLastValue(lastHumidityQuery, presenter::toHumidityDto) }
-        val pm1Supplier = Supplier { queryLastValue(lastPm1Query, presenter::toPm1DTO) }
-        val pm2Supplier = Supplier { queryLastValue(lastPm2Query, presenter::toPm2DTO) }
+        val temperatureSupplier = Supplier { queryLastTemperature() }
+        val humiditySupplier = Supplier { queryLastHumidity() }
+        val pm1Supplier = Supplier { queryLastPm1() }
+        val pm2Supplier = Supplier { queryLastPm2() }
 
         val temperatureResultsFuture = CompletableFuture.supplyAsync(temperatureSupplier, executorService)
         val humidityResultsFuture = CompletableFuture.supplyAsync(humiditySupplier, executorService)
@@ -72,13 +75,13 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
                 pm2ResultsFuture.get())
     }
 
-    fun queryLastTemperature() = queryLastValue(lastTemperatureQuery, presenter::toTemperatureDTO)
+    fun queryLastTemperature() = queryLastValue(lastTemperatureQuery, temperatureLabel)
 
-    fun queryLastHumidity() = queryLastValue(lastHumidityQuery, presenter::toHumidityDto)
+    fun queryLastHumidity() = queryLastValue(lastHumidityQuery, humidityLabel)
 
-    fun queryLastPm1() = queryLastValue(lastPm1Query, presenter::toPm1DTO)
+    fun queryLastPm1() = queryLastValue(lastPm1Query, pm1Label)
 
-    fun queryLastPm2() = queryLastValue(lastPm2Query, presenter::toPm2DTO)
+    fun queryLastPm2() = queryLastValue(lastPm2Query, pm2Label)
 
     fun queryTemperatureSeries(): SeriesResponseDTO {
         val supplier = Supplier { querySeries(temperatureSeriesQuery, temperatureSeries, temperatureColour, temperatureColumns) }
@@ -113,18 +116,20 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
                     .map { SeriesDTO(id, it.name, colour, columns, formatValues(it.values)) }
                     .collect(Collectors.toList())
 
-    private fun queryLastValue(query: String, mappingFunction: (MutableList<Any>) -> LastMeasurementsResponseDTO): LastMeasurementsResponseDTO =
+    private fun queryLastValue(query: String, label: String): LastMeasurementsResponseDTO =
             repository.query(query)
                     .results[0]
                     .series[0]
                     .values
                     .stream()
                     .findFirst()
-                    .map { mappingFunction(it) }
+                    .map { LastMeasurementsResponseDTO(formatDate(it[0]), label, it[1]) }
                     .orElseThrow { NotFoundException("Error retrieving last value") }
 
     private fun formatValues(values: List<MutableList<Any>>): MutableList<MutableList<Any>> = values
             .stream()
-            .map { mutableListOf(dateHelper.formatDate(it[0] as String), it[1]) }
+            .map { mutableListOf(formatDate(it[0]), it[1]) }
             .collect(Collectors.toList())
+
+    private fun formatDate(date: Any) = dateHelper.formatDate(date as String)
 }
