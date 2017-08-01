@@ -2,8 +2,9 @@ package xyz.nedderhoff.luftdatenapi.service
 
 import org.influxdb.dto.Pong
 import org.springframework.stereotype.Service
-import xyz.nedderhoff.luftdatenapi.domain.ResponseDTO
+import xyz.nedderhoff.luftdatenapi.domain.LastMeasurementsResponseDTO
 import xyz.nedderhoff.luftdatenapi.domain.SeriesDTO
+import xyz.nedderhoff.luftdatenapi.domain.SeriesResponseDTO
 import xyz.nedderhoff.luftdatenapi.helper.DateHelper
 import xyz.nedderhoff.luftdatenapi.presenter.LuftdatenPresenter
 import xyz.nedderhoff.luftdatenapi.repository.LuftdatenRepository
@@ -11,6 +12,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutorService
 import java.util.function.Supplier
 import java.util.stream.Collectors
+import javax.ws.rs.NotFoundException
 
 
 @Service
@@ -52,7 +54,7 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
 
     fun ping(): Pong = repository.ping()
 
-    fun queryLastMeasurements(): MutableList<Any> {
+    fun queryLastMeasurements(): MutableList<LastMeasurementsResponseDTO> {
         val temperatureSupplier = Supplier { queryLastValue(lastTemperatureQuery, presenter::toTemperatureDTO) }
         val humiditySupplier = Supplier { queryLastValue(lastHumidityQuery, presenter::toHumidityDto) }
         val pm1Supplier = Supplier { queryLastValue(lastPm1Query, presenter::toPm1DTO) }
@@ -63,37 +65,41 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
         val pm1ResultsFuture = CompletableFuture.supplyAsync(pm1Supplier, executorService)
         val pm2ResultsFuture = CompletableFuture.supplyAsync(pm2Supplier, executorService)
 
-        return mutableListOf(temperatureResultsFuture.get(), humidityResultsFuture.get(), pm1ResultsFuture.get(), pm2ResultsFuture.get())
+        return mutableListOf(
+                temperatureResultsFuture.get(),
+                humidityResultsFuture.get(),
+                pm1ResultsFuture.get(),
+                pm2ResultsFuture.get())
     }
 
-    fun queryLastTemperature(): Any = queryLastValue(lastTemperatureQuery, presenter::toTemperatureDTO)
+    fun queryLastTemperature() = queryLastValue(lastTemperatureQuery, presenter::toTemperatureDTO)
 
-    fun queryLastHumidity(): Any = queryLastValue(lastHumidityQuery, presenter::toHumidityDto)
+    fun queryLastHumidity() = queryLastValue(lastHumidityQuery, presenter::toHumidityDto)
 
-    fun queryLastPm1(): Any = queryLastValue(lastPm1Query, presenter::toPm1DTO)
+    fun queryLastPm1() = queryLastValue(lastPm1Query, presenter::toPm1DTO)
 
-    fun queryLastPm2(): Any = queryLastValue(lastPm2Query, presenter::toPm2DTO)
+    fun queryLastPm2() = queryLastValue(lastPm2Query, presenter::toPm2DTO)
 
-    fun queryTemperatureSeries(): ResponseDTO {
+    fun queryTemperatureSeries(): SeriesResponseDTO {
         val supplier = Supplier { querySeries(temperatureSeriesQuery, temperatureSeries, temperatureColour, temperatureColumns) }
         val resultsFuture = CompletableFuture.supplyAsync(supplier, executorService)
-        return ResponseDTO(resultsFuture.get())
+        return SeriesResponseDTO(resultsFuture.get())
     }
 
-    fun queryHumiditySeries(): ResponseDTO {
+    fun queryHumiditySeries(): SeriesResponseDTO {
         val supplier = Supplier { querySeries(humiditySeriesQuery, humiditySeries, humidityColour, humidityColumns) }
         val resultsFuture = CompletableFuture.supplyAsync(supplier, executorService)
-        return ResponseDTO(resultsFuture.get())
+        return SeriesResponseDTO(resultsFuture.get())
     }
 
-    fun queryPmSeries(): ResponseDTO {
+    fun queryPmSeries(): SeriesResponseDTO {
         val pm1Supplier = Supplier { querySeries(pm1SeriesQuery, pm1Series, pm1Colour, pm1Columns) }
         val pm2Supplier = Supplier { querySeries(pm2SeriesQuery, pm2Series, pm2Colour, pm2Columns) }
 
         val pm1ResultsFuture = CompletableFuture.supplyAsync(pm1Supplier, executorService)
         val pm2ResultsFuture = CompletableFuture.supplyAsync(pm2Supplier, executorService)
 
-        return ResponseDTO(pm1ResultsFuture.get()
+        return SeriesResponseDTO(pm1ResultsFuture.get()
                 .toSet()
                 .union(pm2ResultsFuture.get())
                 .toMutableList())
@@ -107,7 +113,7 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
                     .map { SeriesDTO(id, it.name, colour, columns, formatValues(it.values)) }
                     .collect(Collectors.toList())
 
-    private fun queryLastValue(query: String, mappingFunction: (MutableList<Any>) -> Any): Any =
+    private fun queryLastValue(query: String, mappingFunction: (MutableList<Any>) -> LastMeasurementsResponseDTO): LastMeasurementsResponseDTO =
             repository.query(query)
                     .results[0]
                     .series[0]
@@ -115,6 +121,7 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
                     .stream()
                     .findFirst()
                     .map { mappingFunction(it) }
+                    .orElseThrow { NotFoundException("Error retrieving last value") }
 
     private fun formatValues(values: List<MutableList<Any>>): MutableList<MutableList<Any>> = values
             .stream()
