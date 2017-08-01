@@ -1,6 +1,7 @@
 package xyz.nedderhoff.luftdatenapi.service
 
 import org.influxdb.dto.Pong
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import xyz.nedderhoff.luftdatenapi.domain.LastMeasurementsResponseDTO
 import xyz.nedderhoff.luftdatenapi.domain.SeriesDTO
@@ -18,6 +19,8 @@ import javax.ws.rs.NotFoundException
 class LuftdatenService(val repository: LuftdatenRepository,
                        val dateHelper: DateHelper,
                        val executorService: ExecutorService) {
+
+    private val logger = LoggerFactory.getLogger(LuftdatenService::class.java)!!
 
     private val luftdatenSeries = "feinstaub"
     private val temperatureSeries = "temperature"
@@ -58,15 +61,10 @@ class LuftdatenService(val repository: LuftdatenRepository,
     fun ping(): Pong = repository.ping()
 
     fun queryLastMeasurements(): MutableList<LastMeasurementsResponseDTO> {
-        val temperatureSupplier = Supplier { queryLastTemperature() }
-        val humiditySupplier = Supplier { queryLastHumidity() }
-        val pm1Supplier = Supplier { queryLastPm1() }
-        val pm2Supplier = Supplier { queryLastPm2() }
-
-        val temperatureResultsFuture = CompletableFuture.supplyAsync(temperatureSupplier, executorService)
-        val humidityResultsFuture = CompletableFuture.supplyAsync(humiditySupplier, executorService)
-        val pm1ResultsFuture = CompletableFuture.supplyAsync(pm1Supplier, executorService)
-        val pm2ResultsFuture = CompletableFuture.supplyAsync(pm2Supplier, executorService)
+        val temperatureResultsFuture = supplyLastMeasurementFuture(Supplier { queryLastTemperature() })
+        val humidityResultsFuture = supplyLastMeasurementFuture(Supplier { queryLastHumidity() })
+        val pm1ResultsFuture = supplyLastMeasurementFuture(Supplier { queryLastPm1() })
+        val pm2ResultsFuture = supplyLastMeasurementFuture(Supplier { queryLastPm2() })
 
         return mutableListOf(
                 temperatureResultsFuture.get(),
@@ -85,22 +83,20 @@ class LuftdatenService(val repository: LuftdatenRepository,
 
     fun queryTemperatureSeries(): SeriesResponseDTO {
         val supplier = Supplier { querySeries(temperatureSeriesQuery, temperatureSeries, temperatureColour, temperatureColumns) }
-        val resultsFuture = CompletableFuture.supplyAsync(supplier, executorService)
-        return SeriesResponseDTO(resultsFuture.get())
+        return SeriesResponseDTO(supplySeriesFuture(supplier).get())
     }
 
     fun queryHumiditySeries(): SeriesResponseDTO {
         val supplier = Supplier { querySeries(humiditySeriesQuery, humiditySeries, humidityColour, humidityColumns) }
-        val resultsFuture = CompletableFuture.supplyAsync(supplier, executorService)
-        return SeriesResponseDTO(resultsFuture.get())
+        return SeriesResponseDTO(supplySeriesFuture(supplier).get())
     }
 
     fun queryPmSeries(): SeriesResponseDTO {
         val pm1Supplier = Supplier { querySeries(pm1SeriesQuery, pm1Series, pm1Colour, pm1Columns) }
         val pm2Supplier = Supplier { querySeries(pm2SeriesQuery, pm2Series, pm2Colour, pm2Columns) }
 
-        val pm1ResultsFuture = CompletableFuture.supplyAsync(pm1Supplier, executorService)
-        val pm2ResultsFuture = CompletableFuture.supplyAsync(pm2Supplier, executorService)
+        val pm1ResultsFuture = supplySeriesFuture(pm1Supplier)
+        val pm2ResultsFuture = supplySeriesFuture(pm2Supplier)
 
         return SeriesResponseDTO(pm1ResultsFuture.get()
                 .toSet()
@@ -132,4 +128,18 @@ class LuftdatenService(val repository: LuftdatenRepository,
             .collect(Collectors.toList())
 
     private fun formatDate(date: Any) = dateHelper.formatDate(date as String)
+
+    private fun supplyLastMeasurementFuture(pm2Supplier: Supplier<LastMeasurementsResponseDTO>) = CompletableFuture
+            .supplyAsync(pm2Supplier, executorService)
+            .exceptionally {
+                logger.error("An unexpected error occurred", it)
+                throw it
+            }
+
+    private fun supplySeriesFuture(pm2Supplier: Supplier<MutableList<SeriesDTO>>) = CompletableFuture
+            .supplyAsync(pm2Supplier, executorService)
+            .exceptionally {
+                logger.error("An unexpected error occurred", it)
+                throw it
+            }
 }

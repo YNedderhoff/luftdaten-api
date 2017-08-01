@@ -9,7 +9,7 @@ import java.util.function.Supplier
 @RestController
 class LuftdatenController(val service: LuftdatenService?) {
 
-    val logger = LoggerFactory.getLogger(LuftdatenController::class.java)
+    val logger = LoggerFactory.getLogger(LuftdatenController::class.java)!!
 
     @GetMapping("/pingInflux")
     fun ping() = get("/pingInflux", Supplier { service!!.ping() })
