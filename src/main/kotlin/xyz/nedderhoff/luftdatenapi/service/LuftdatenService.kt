@@ -124,7 +124,7 @@ class LuftdatenService(val repository: LuftdatenRepository,
                     .stream()
                     .findFirst()
                     .map { LastMeasurementsResponseDTO(formatDate(it[0]), label, it[1]) }
-                    .orElseThrow { NotFoundException("Error retrieving last value") }
+                    .orElseThrow { NotFoundException("Error retrieving last value of $label") }
 
     private fun formatValues(values: List<MutableList<Any>>): MutableList<MutableList<Any>> = values
             .stream()
