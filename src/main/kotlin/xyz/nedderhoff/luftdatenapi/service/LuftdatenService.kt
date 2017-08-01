@@ -107,5 +107,5 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
     private fun formatDate(dateString: String): String = Instant
             .parse(dateString)
             .atZone(ZoneId.of(ZoneOffset.UTC.id))
-            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mmZ"))
+            .toString()
 }
