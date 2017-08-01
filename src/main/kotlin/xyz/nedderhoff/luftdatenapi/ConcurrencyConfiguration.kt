@@ -9,6 +9,6 @@ import java.util.concurrent.Executors
 open class ConcurrencyConfiguration {
     @Bean
     open fun executorService(): ExecutorService {
-        return Executors.newFixedThreadPool(4)!!
+        return Executors.newFixedThreadPool(16)!!
     }
 }

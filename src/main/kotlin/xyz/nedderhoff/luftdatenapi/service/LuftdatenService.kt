@@ -6,10 +6,12 @@ import xyz.nedderhoff.luftdatenapi.domain.ResponseDTO
 import xyz.nedderhoff.luftdatenapi.domain.SeriesDTO
 import xyz.nedderhoff.luftdatenapi.presenter.LuftdatenPresenter
 import xyz.nedderhoff.luftdatenapi.repository.LuftdatenRepository
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.format.DecimalStyle
 import java.time.format.FormatStyle
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
@@ -80,15 +82,13 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
                 .toMutableList())
     }
 
-    private fun querySeries(query: String, id: String, colour: String, columns: MutableList<String>): MutableList<SeriesDTO> {
-        return repository
-                .query(query)
-                .results[0]
-                .series
-                .stream()
-                .map { SeriesDTO(id, it.name, colour, columns, formatValues(it.values)) }
-                .collect(Collectors.toList())
-    }
+    private fun querySeries(query: String, id: String, colour: String, columns: MutableList<String>): MutableList<SeriesDTO> =
+            repository.query(query)
+                    .results[0]
+                    .series
+                    .stream()
+                    .map { SeriesDTO(id, it.name, colour, columns, formatValues(it.values)) }
+                    .collect(Collectors.toList())
 
     private fun queryLastValue(query: String, mappingFunction: (MutableList<Any>) -> Any): Optional<Any>? =
             repository.query(query)
@@ -101,11 +101,11 @@ class LuftdatenService(val presenter: LuftdatenPresenter,
 
     private fun formatValues(values: List<MutableList<Any>>): MutableList<MutableList<Any>> = values
             .stream()
-            .map { v -> mutableListOf(formatDate(v[0] as String), v[1] as Double) }
+            .map { mutableListOf(formatDate(it[0] as String), it[1]) }
             .collect(Collectors.toList())
 
     private fun formatDate(dateString: String): String = Instant
             .parse(dateString)
             .atZone(ZoneId.of(ZoneOffset.UTC.id))
-            .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT))
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mmZ"))
 }
