@@ -29,8 +29,14 @@ class LuftdatenController(val luftdatenService: LuftdatenService?) {
     @GetMapping("/pm.json")
     fun getPmSeries() = get("/pm.json", Supplier { luftdatenService!!.queryPmSeries() })
 
-    @GetMapping("/pm/last")
-    fun getLastPm() = get("/pm/last", Supplier { luftdatenService!!.queryLastPm() })
+    @GetMapping("/pm1/last")
+    fun getLastPm1() = get("/pm1/last", Supplier { luftdatenService!!.queryLastPm1() })
+
+    @GetMapping("/pm2/last")
+    fun getLastPm2() = get("/pm2/last", Supplier { luftdatenService!!.queryLastPm2() })
+
+    @GetMapping("/lastMeasurements")
+    fun getLastMeasurements() = get("/lastMeasurements", Supplier { luftdatenService!!.queryLastMeasurements() })
 
     private fun get(endpoint: String, supplier: Supplier<Any?>): Any? {
         logger.info("Received GET $endpoint call")

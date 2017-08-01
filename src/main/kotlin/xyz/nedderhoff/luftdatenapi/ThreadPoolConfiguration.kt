@@ -6,7 +6,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 @Configuration
-open class ConcurrencyConfiguration {
+open class ThreadPoolConfiguration {
     @Bean
     open fun executorService(): ExecutorService {
         return Executors.newFixedThreadPool(16)!!
