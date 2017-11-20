@@ -11,8 +11,11 @@ class LuftdatenController(val service: LuftdatenService?) {
 
     val logger = LoggerFactory.getLogger(LuftdatenController::class.java)!!
 
+    @GetMapping("/ping")
+    fun ping() = "Yep, I'm alive"
+
     @GetMapping("/pingInflux")
-    fun ping() = get("/pingInflux", Supplier { service!!.ping() })
+    fun pingInflux() = get("/pingInflux", Supplier { service!!.ping() })
 
     @GetMapping("/temperature.json")
     fun getTemperatureSeries() = get("/temperature.json", Supplier { service!!.queryTemperatureSeries() })
