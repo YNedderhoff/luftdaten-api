@@ -104,23 +104,27 @@ class LuftdatenService(val repository: LuftdatenRepository,
                 .toMutableList())
     }
 
-    private fun querySeries(query: String, id: String, colour: String, columns: MutableList<String>): MutableList<SeriesDTO> =
-            repository.query(query)
-                    .results[0]
-                    .series
-                    .stream()
-                    .map { SeriesDTO(id, it.name, colour, columns, formatValues(it.values)) }
-                    .collect(Collectors.toList())
+    private fun querySeries(query: String, id: String, colour: String, columns: MutableList<String>): MutableList<SeriesDTO> {
+        logger.info("Query: {}", query)
+        return repository.query(query)
+                .results[0]
+                .series
+                .stream()
+                .map { SeriesDTO(id, it.name, colour, columns, formatValues(it.values)) }
+                .collect(Collectors.toList())
+    }
 
-    private fun queryLastValue(query: String, label: String): LastMeasurementsResponseDTO =
-            repository.query(query)
-                    .results[0]
-                    .series[0]
-                    .values
-                    .stream()
-                    .findFirst()
-                    .map { LastMeasurementsResponseDTO(formatDate(it[0]), label, it[1]) }
-                    .orElseThrow { NotFoundException("Error retrieving last value of $label") }
+    private fun queryLastValue(query: String, label: String): LastMeasurementsResponseDTO {
+        logger.info("Query: {}", query)
+        return repository.query(query)
+                .results[0]
+                .series[0]
+                .values
+                .stream()
+                .findFirst()
+                .map { LastMeasurementsResponseDTO(formatDate(it[0]), label, it[1]) }
+                .orElseThrow { NotFoundException("Error retrieving last value of $label") }
+    }
 
     private fun formatValues(values: List<MutableList<Any>>): MutableList<MutableList<Any>> = values
             .stream()

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component
 @Component
 open class LuftdatenRepository(val influxDBTemplate: InfluxDBTemplate<Point>?) {
 
-    private val database = "pm_temp_hum"
+    private val database = "feinstaub"
 
     fun ping(): Pong = influxDBTemplate!!.ping()
 
