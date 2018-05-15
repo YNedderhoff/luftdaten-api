@@ -1,5 +1,7 @@
 # luftdaten-api
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/de987f0cfb5548bda1bf70bdb9774254)](https://app.codacy.com/app/YNedderhoff/luftdaten-api?utm_source=github.com&utm_medium=referral&utm_content=YNedderhoff/luftdaten-api&utm_campaign=badger)
+
 An API on top of InfluxDB holding data from the [lufdaten.info](http://luftdaten.info) [particulate matter sensor](https://github.com/opendata-stuttgart/sensors-software) exposing several endpoints, some of which were intended to be used with [Brandwatch Vizia](https://www.brandwatch.com/vizia/).
 
 ## Endpoints
